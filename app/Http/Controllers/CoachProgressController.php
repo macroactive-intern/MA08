@@ -1,7 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
+use App\Exceptions\CoachAccessRequiredException;
+use App\Http\Resources\MeasurementResource;
+use App\Http\Resources\ProgressPhotoResource;
 use App\Models\Measurement;
 use App\Models\ProgressPhoto;
 use App\Models\User;
@@ -13,18 +18,22 @@ class CoachProgressController extends Controller
     public function clientMeasurements(Request $request, User $user): JsonResponse
     {
         if ($request->user()->role !== 'coach') {
-            abort(403);
+            throw new CoachAccessRequiredException();
         }
 
-        return response()->json(Measurement::where('user_id', $user->id)->get());
+        return MeasurementResource::collection(
+            Measurement::where('user_id', $user->id)->get()
+        )->response();
     }
 
     public function clientPhotos(Request $request, User $user): JsonResponse
     {
         if ($request->user()->role !== 'coach') {
-            abort(403);
+            throw new CoachAccessRequiredException();
         }
 
-        return response()->json(ProgressPhoto::where('user_id', $user->id)->get());
+        return ProgressPhotoResource::collection(
+            ProgressPhoto::where('user_id', $user->id)->get()
+        )->response();
     }
 }

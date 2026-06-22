@@ -1,8 +1,10 @@
 <?php
 
+use App\Exceptions\CoachAccessRequiredException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,5 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (CoachAccessRequiredException $e, Request $request): \Illuminate\Http\JsonResponse {
+            return response()->json(['message' => $e->getMessage()], 403);
+        });
     })->create();
