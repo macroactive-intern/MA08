@@ -53,7 +53,7 @@ class MeasurementController extends Controller
             $query->whereDate('measured_at', '<=', $request->end_date);
         }
 
-        return MeasurementResource::collection($query->get())->response();
+        return MeasurementResource::collection($query->orderBy('measured_at', 'desc')->get())->response();
     }
 
     public function update(UpdateMeasurementRequest $request, Measurement $measurement): JsonResponse

@@ -49,7 +49,7 @@ class ProgressPhotoController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $photos = ProgressPhoto::where('user_id', $request->user()->id)->get();
+        $photos = ProgressPhoto::where('user_id', $request->user()->id)->orderBy('taken_at', 'desc')->get();
 
         return ProgressPhotoResource::collection($photos)->response();
     }
