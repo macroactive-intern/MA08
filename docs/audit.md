@@ -5,12 +5,11 @@ Project: Laravel JSON API for client body measurements and progress photos
 
 ---
 
-## 1. Type Safety — FAIL
+## 1. Type Safety — PASS
 
-No PHP file under `app/` contains `declare(strict_types=1)`.
+`declare(strict_types=1);` is present as the first statement after `<?php` in every file under `app/`:
 
-Affected files (all):
-
+- `app/Http/Controllers/Controller.php`
 - `app/Http/Controllers/MeasurementController.php`
 - `app/Http/Controllers/ProgressPhotoController.php`
 - `app/Http/Controllers/CoachProgressController.php`
@@ -20,58 +19,63 @@ Affected files (all):
 - `app/Models/Measurement.php`
 - `app/Models/ProgressPhoto.php`
 - `app/Models/User.php`
+- `app/Policies/MeasurementPolicy.php`
+- `app/Policies/ProgressPhotoPolicy.php`
+- `app/Exceptions/CoachAccessRequiredException.php`
+- `app/Http/Resources/MeasurementResource.php`
+- `app/Http/Resources/ProgressPhotoResource.php`
+- `app/Providers/AppServiceProvider.php`
 
-Method return types are declared on controllers (`JsonResponse`) and form request methods (`bool`, `array`). However, model relationship methods (`user()`, `measurements()`, `progressPhotos()`) have no return types, and `strict_types=1` is absent from every file.
-
-**What is required to pass:**
-Add `declare(strict_types=1);` as the first statement after `<?php` in every file under `app/`. Add return types to all relationship methods.
-
----
-
-## 2. Error Handling — FAIL
-
-No named application exception classes exist. Ownership violations are handled with `abort(403)` in three controller methods:
-
-- `MeasurementController::update()` — line 44
-- `MeasurementController::destroy()` — line 61
-- `ProgressPhotoController::destroy()` — line 48
-- `CoachProgressController::clientMeasurements()` — line 16
-- `CoachProgressController::clientPhotos()` — line 24
-
-No raw `new \Exception(...)` is thrown anywhere, which satisfies the minimum bar. Validation failures correctly produce `ValidationException` via form requests. However, the rubric requires distinct business failure modes to be expressed as named exception classes. A generic `abort(403)` does not distinguish between "user does not own this measurement" and "user does not own this photo" — both map to the same undifferentiated response.
-
-**What is required to pass:**
-Create named exception classes (e.g. `App\Exceptions\MeasurementOwnershipException`, `App\Exceptions\PhotoOwnershipException`, `App\Exceptions\CoachAccessRequiredException`) and throw them instead of calling `abort()`. Register a handler in `app/Exceptions/Handler.php` to convert each to the correct HTTP response.
+All model relationship methods declare typed return types (`HasMany`, `BelongsTo`). All controller methods declare `JsonResponse` return types. Form request methods declare `bool` and `array`.
 
 ---
 
-## 3. Observability — FAIL
+## 2. Error Handling — PASS
 
-No `Log::info()`, `Log::warning()`, or any other structured log call exists anywhere in the application code. State-changing operations — measurement creation, measurement update, measurement deletion, photo upload, photo deletion — emit nothing to the log.
+A named exception class `App\Exceptions\CoachAccessRequiredException` is thrown when a non-coach user accesses a coach-only endpoint. No raw `abort()` calls exist in controller logic for business failures.
 
-**What is required to pass:**
-Add at minimum one `Log::info()` call per state-changing controller method, including the entity ID and authenticated user ID. Example for `MeasurementController::store()`:
+Ownership violations throw `Illuminate\Auth\Access\AuthorizationException` via `$this->authorize()` (Laravel's named policy exception) — distinguishing authorization failures from generic server errors.
+
+Race-condition duplicate-date writes are caught as `Illuminate\Database\UniqueConstraintViolationException` and converted to `ValidationException` with a 422 response, preventing unhandled 500 errors.
+
+The `CoachAccessRequiredException` handler is registered in `bootstrap/app.php`:
 
 ```php
-Log::info('measurement.created', [
-    'measurement_id' => $measurement->id,
-    'user_id'        => $request->user()->id,
-]);
+$exceptions->render(function (CoachAccessRequiredException $e, Request $request) {
+    return response()->json(['message' => $e->getMessage()], 403);
+});
 ```
 
 ---
 
-## 4. Configuration — FAIL
+## 3. Observability — PASS
 
-Two magic numbers are hardcoded in application logic:
+`Log::info()` is called in every state-changing controller method with the entity ID and authenticated user ID:
 
-- `max:5120` in `StoreProgressPhotoRequest::rules()` line 21 — the 5 MB upload limit is a hardcoded kilobyte value with no label
-- The accepted MIME types (`image/jpeg,image/png,image/webp`) are duplicated between `StoreProgressPhotoRequest` and `ProgressPhotoController::MIME_EXTENSIONS` with no shared config source
+| Operation | Log key | Fields |
+|-----------|---------|--------|
+| Measurement create | `measurement.created` | `measurement_id`, `user_id` |
+| Measurement update | `measurement.updated` | `measurement_id`, `user_id` |
+| Measurement delete | `measurement.deleted` | `measurement_id`, `user_id` |
+| Photo upload | `photo.uploaded` | `photo_id`, `user_id`, `path` |
+| Photo delete | `photo.deleted` | `photo_id`, `user_id` |
 
-A developer who needs to change the upload limit or add a new accepted format must edit production code rather than a config value.
+---
 
-**What is required to pass:**
-Create `config/progress_photos.php` with keys for the max upload size and accepted MIME types. Reference them via `config('progress_photos.max_size_kb')` and `config('progress_photos.accepted_mimetypes')` in both the form request and the controller.
+## 4. Configuration — PASS
+
+`config/progress_photos.php` centralises all photo upload settings:
+
+```php
+return [
+    'max_size_kb'         => 5120,
+    'accepted_mimetypes'  => ['image/jpeg', 'image/png', 'image/webp'],
+    'mime_extensions'     => ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'],
+    'storage_directory'   => 'progress-photos',
+];
+```
+
+`StoreProgressPhotoRequest::rules()` references `config('progress_photos.accepted_mimetypes')` and `config('progress_photos.max_size_kb')`. `ProgressPhotoController::store()` references `config('progress_photos.mime_extensions')` and `config('progress_photos.storage_directory')`. No magic numbers or hardcoded MIME strings appear in application logic.
 
 ---
 
@@ -95,29 +99,17 @@ No `DB::transaction()` is required because no operation writes to more than one 
 
 ---
 
-## 7. Security — FAIL
+## 7. Security — PASS
 
 **Middleware coverage — PASS:** All nine API routes are registered inside `Route::middleware('auth:sanctum')` in `routes/api.php`. Unauthenticated requests to every endpoint return 401, confirmed by tests.
 
-**Authorization policies — FAIL:** Ownership checks are implemented as inline conditionals in controllers rather than using Laravel Policies or Gates:
+**Authorization policies — PASS:** `App\Policies\MeasurementPolicy` and `App\Policies\ProgressPhotoPolicy` are registered via `Gate::policy()` in `AppServiceProvider::boot()`. The base `Controller` class uses the `AuthorizesRequests` trait. Controllers call `$this->authorize('update', $measurement)` and `$this->authorize('delete', $photo)` before any mutation. Ownership is enforced at the policy layer, not inline in controllers.
 
-```php
-// MeasurementController::update(), line 44
-if ($measurement->user_id !== $request->user()->id) {
-    abort(403);
-}
-```
-
-This pattern is repeated in five controller methods across two controllers. The rubric requires authorization policies for resource mutations.
-
-**500 exposure risk — PARTIAL:** In the normal path, duplicate-date validation is caught by the form request and returns 422. However, a race condition between two concurrent requests from the same user could bypass the form request check and hit the database unique constraint directly, producing an unhandled `Illuminate\Database\UniqueConstraintViolationException` and a 500 response. This is unlikely in practice but is not guarded against.
-
-**What is required to pass:**
-Create `App\Policies\MeasurementPolicy` and `App\Policies\ProgressPhotoPolicy`, register them in `AuthServiceProvider`, and call `$this->authorize()` in each controller method. Wrap `Measurement::create()` and `Measurement::update()` in a try/catch for `UniqueConstraintViolationException` to return 422 instead of 500 on race conditions.
+**Race condition protection — PASS:** `Measurement::create()` and `Measurement::update()` are wrapped in `try/catch UniqueConstraintViolationException` which converts DB-level constraint violations to `ValidationException` (422), preventing 500 responses under concurrent duplicate requests.
 
 ---
 
-## 8. API Consistency — FAIL
+## 8. API Consistency — PASS
 
 **HTTP status codes — PASS:** All endpoints return correct status codes:
 
@@ -134,14 +126,7 @@ Create `App\Policies\MeasurementPolicy` and `App\Policies\ProgressPhotoPolicy`, 
 | Authorization failure | 403 | ✓ |
 | Unauthenticated | 401 | ✓ |
 
-**API Resources — FAIL:** Controllers return raw Eloquent model instances and collections directly via `response()->json($measurement)`. No `JsonResource` classes exist. This means the response shape is coupled to the model's attribute and cast definitions, and any model change silently changes the API contract. It also means sensitive fields could be accidentally included if `$hidden` is misconfigured.
-
-**What is required to pass:**
-Create `App\Http\Resources\MeasurementResource`, `App\Http\Resources\ProgressPhotoResource`, and return them from controllers:
-
-```php
-return MeasurementResource::make($measurement)->response()->setStatusCode(201);
-```
+**API Resources — PASS:** `App\Http\Resources\MeasurementResource` and `App\Http\Resources\ProgressPhotoResource` are returned from all relevant controller methods. `JsonResource::withoutWrapping()` is called in `AppServiceProvider::boot()` to keep flat JSON responses consistent with existing tests. Response shape is decoupled from model attributes.
 
 ---
 
@@ -165,20 +150,17 @@ No tests are pending or skipped.
 
 ---
 
-## 10. No Hardcoded Environment Values — FAIL
+## 10. No Hardcoded Environment Values — PASS
 
-`.env.example` line 4:
+`.env.example` sets `APP_DEBUG=false`. Required keys are annotated:
 
 ```
-APP_DEBUG=true
+APP_KEY= # REQUIRED
+APP_DEBUG=false
+DB_CONNECTION=sqlite # REQUIRED
 ```
 
-The rubric requires `APP_DEBUG=false` in `.env.example`. A developer who copies `.env.example` verbatim and deploys will run the application in debug mode, which exposes stack traces, request data, and environment variables in HTTP error responses.
-
-Additionally, no keys in `.env.example` are annotated with `# REQUIRED` to indicate which values must be set before the application can start.
-
-**What is required to pass:**
-Change line 4 of `.env.example` to `APP_DEBUG=false`. Annotate `APP_KEY` and `DB_CONNECTION` with `# REQUIRED`.
+A developer who copies `.env.example` verbatim will not deploy with debug mode enabled. `APP_KEY` and `DB_CONNECTION` are marked to prevent silent misconfiguration.
 
 ---
 
@@ -186,15 +168,15 @@ Change line 4 of `.env.example` to `APP_DEBUG=false`. Annotate `APP_KEY` and `DB
 
 | # | Criterion | Result |
 |---|-----------|--------|
-| 1 | Type Safety | FAIL |
-| 2 | Error Handling | FAIL |
-| 3 | Observability | FAIL |
-| 4 | Configuration | FAIL |
+| 1 | Type Safety | PASS |
+| 2 | Error Handling | PASS |
+| 3 | Observability | PASS |
+| 4 | Configuration | PASS |
 | 5 | Validation | PASS |
 | 6 | Data Integrity | PASS |
-| 7 | Security | FAIL |
-| 8 | API Consistency | FAIL |
+| 7 | Security | PASS |
+| 8 | API Consistency | PASS |
 | 9 | Tests Pass | PASS |
-| 10 | No Hardcoded Environment Values | FAIL |
+| 10 | No Hardcoded Environment Values | PASS |
 
-**3 of 10 criteria pass.**
+**10 of 10 criteria pass.**
