@@ -53,11 +53,13 @@ class ProgressPhotoController extends Controller
     {
         $this->authorize('delete', $photo);
 
-        if (Storage::disk('local')->exists($photo->storage_path)) {
-            Storage::disk('local')->delete($photo->storage_path);
-        }
+        $path = $photo->storage_path;
 
         $photo->delete();
+
+        if (Storage::disk('local')->exists($path)) {
+            Storage::disk('local')->delete($path);
+        }
 
         Log::info('photo.deleted', [
             'photo_id' => $photo->id,
