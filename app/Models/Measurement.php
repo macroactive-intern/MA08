@@ -22,7 +22,7 @@ class Measurement extends Model
     protected function casts(): array
     {
         return [
-            'measured_at'         => 'date',
+            'measured_at'         => 'date:Y-m-d',
             'weight'              => 'decimal:2',
             'body_fat_percentage' => 'decimal:1',
         ];
