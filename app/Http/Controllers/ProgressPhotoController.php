@@ -26,12 +26,17 @@ class ProgressPhotoController extends Controller
 
         Storage::disk('local')->put($path, file_get_contents($file->getRealPath()));
 
-        $photo = ProgressPhoto::create([
-            'user_id'      => $request->user()->id,
-            'taken_at'     => $request->taken_at,
-            'storage_path' => $path,
-            'caption'      => $request->caption,
-        ]);
+        try {
+            $photo = ProgressPhoto::create([
+                'user_id'      => $request->user()->id,
+                'taken_at'     => $request->taken_at,
+                'storage_path' => $path,
+                'caption'      => $request->caption,
+            ]);
+        } catch (\Throwable $e) {
+            Storage::disk('local')->delete($path);
+            throw $e;
+        }
 
         Log::info('photo.uploaded', [
             'photo_id' => $photo->id,
