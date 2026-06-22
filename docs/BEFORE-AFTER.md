@@ -144,3 +144,52 @@ SQLSTATE[23000]: Integrity constraint violation: 19 UNIQUE constraint failed: me
   After
 
 --------------------------------------------------------------------------
+
+ PASS  Tests\Unit\ExampleTest
+  ✓ that true is true
+
+   PASS  Tests\Feature\CoachProgressTest
+  ✓ it coach can view a client's measurements                                                                                                0.26s  
+  ✓ it coach can view a client's photo metadata                                                                                              0.02s  
+  ✓ it coach photo list returns metadata only and not binary data                                                                            0.01s  
+  ✓ it non-coach gets 403 from coach measurement endpoint                                                                                    0.01s  
+  ✓ it non-coach gets 403 from coach photo endpoint                                                                                          0.01s  
+  ✓ it returns 401 when unauthenticated on coach endpoints                                                                                   0.01s  
+
+   PASS  Tests\Feature\ExampleTest
+  ✓ the application returns a successful response                                                                                            0.03s  
+
+   PASS  Tests\Feature\MeasurementTest
+  ✓ it can create a measurement                                                                                                              0.02s  
+  ✓ it requires unit_system to be metric or imperial                                                                                         0.01s  
+  ✓ it returns 422 for a duplicate same-day measurement                                                                                      0.01s  
+  ✓ it allows different users to create measurements for the same date                                                                       0.01s  
+  ✓ it can list own measurements                                                                                                             0.01s  
+  ✓ it filters measurements by start_date                                                                                                    0.01s  
+  ✓ it filters measurements by end_date                                                                                                      0.01s  
+  ✓ it filters measurements by date range                                                                                                    0.01s  
+  ✓ it can update own measurement                                                                                                            0.01s  
+  ✓ it cannot update a measurement to a date already used by the same user                                                                   0.01s  
+  ✓ it can delete own measurement                                                                                                            0.01s  
+  ✓ it cannot update another user's measurement                                                                                              0.01s  
+  ✓ it cannot delete another user's measurement                                                                                              0.01s  
+  ✓ it returns 401 when unauthenticated on measurement endpoints                                                                             0.01s  
+
+   PASS  Tests\Feature\ProgressPhotoTest
+  ✓ it can upload a JPEG photo                                                                                                               0.03s  
+  ✓ it can upload a PNG photo                                                                                                                0.02s  
+  ✓ it can upload a WEBP photo                                                                                                               0.02s  
+  ✓ it rejects other image formats                                                                                                           0.02s  
+  ✓ it rejects files larger than 5 MB                                                                                                        0.01s  
+  ✓ it validates MIME type not just file extension                                                                                           0.01s  
+  ✓ it stores a system-generated path, not the original filename                                                                             0.02s  
+  ✓ it stores the file on disk after upload                                                                                                  0.02s  
+  ✓ it can list own photo metadata                                                                                                           0.02s  
+  ✓ it photo list returns metadata only and not binary data                                                                                  0.01s  
+  ✓ it deleting a photo removes the database record                                                                                          0.01s  
+  ✓ it deleting a photo removes the file from disk                                                                                           0.02s  
+  ✓ it cannot delete another user's photo                                                                                                    0.02s  
+  ✓ it returns 401 when unauthenticated on photo endpoints                                                                                   0.01s  
+
+  Tests:    36 passed (81 assertions)
+  Duration: 0.92s
